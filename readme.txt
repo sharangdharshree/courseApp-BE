@@ -21,35 +21,7 @@
 
 
 
-schema: 
-user, admin, course, purchase 
 
-user{
-    fullName,
-    email,
-    phone,
-    purchase:[ref purchase  ]
-}
-admin{
-    type: user
-    ref: 
-    courses:[ref course]
-}
-course{
-    title: 
-    overview:
-    description:
-    price:
-    contents:[]
-
-}
-purchase{
-    owner:
-    datetime:
-    amount paid:
-    invoice:
-    course: ref course //could enroll only single course in one transaction, no concept of cart
-}
 
 // csrf protection
 security : Helmet, Rate limiting
