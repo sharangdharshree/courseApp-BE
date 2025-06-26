@@ -10,9 +10,13 @@
    3. define schema and models : DONE
 
    4. define controllers, with middleware and validators 
-
+      : user related controller, validators, middleware DONE
+      : public controller: DONE
+      : admin controllers, then course controller...
    5. define routes 
-
+      : user routes defined: DONE
+      : public route: DONE 
+      : admin route, then course route...
    6. testing 
 
    7. backend deploy 

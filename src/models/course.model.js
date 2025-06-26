@@ -68,6 +68,10 @@ const courseSchema = new mongoose.Schema(
       trim: true,
       required: true,
     },
+    thumbnail: {
+      type: String,
+      required: true,
+    },
     sections: [sectionSchema],
     category: {
       type: String,
