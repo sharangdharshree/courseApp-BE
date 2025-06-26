@@ -1,17 +1,16 @@
 import mongoose from "mongoose";
-import User from "./user.model.js";
-import Course from "./course.model.js";
+import { ApiError } from "../utils/ApiError.js";
 
 const purchaseSchema = new mongoose.Schema(
   {
     owner: {
-      type: mongoose.Types.ObjectId,
-      ref: User,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
       required: true,
     },
     course: {
-      type: mongoose.Types.ObjectId,
-      ref: Course,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
       required: true,
     },
     amountBreakdown: {
@@ -52,13 +51,17 @@ const purchaseSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    purchaseStatus: {
+      type: String,
+      enum: ["PENDING", "PAID", "COMPLETED", "FAILED", "REFUNDED", "CANCELLED"],
+      default: "PENDING",
+    },
     purchasedAt: {
-      type: Date.now(),
+      type: Date,
       required: true,
     },
     invoiceNumber: {
       type: String,
-      required: true,
       unique: true,
       index: true,
     },
@@ -66,6 +69,16 @@ const purchaseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Purchase = mongoose.model("Purchase", purchaseSchema);
+purchaseSchema.method.generateInvoice = () => {
+  if (this.purchaseStatus !== "COMPLETED") {
+    throw new ApiError(
+      401,
+      `Invoice generation failed, Purchase Status: ${this.purchaseStatus}`
+    );
+  }
+  return "INV" + new Date.getFullYear() + this._id;
+};
+
+const Purchase = new mongoose.model("Purchase", purchaseSchema);
 
 export default Purchase;

@@ -1,11 +1,10 @@
 import mongoose, { mongo } from "mongoose";
-import { User } from "./user.model.js";
 
-const contentSchema = mongoose.Schema(
+const contentSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["video", "pdf", "file", "other"],
+      enum: ["video", "pdf", "file", "link", "other"],
       required: true,
     },
     title: {
@@ -26,13 +25,13 @@ const contentSchema = mongoose.Schema(
     },
     uploadTime: {
       type: Date,
-      default: Date.now(),
+      default: Date,
     },
   },
   { _id: false }
 );
 
-const sectionSchema = mongoose.Schema(
+const sectionSchema = new mongoose.Schema(
   {
     title: {
       type: String,
@@ -48,11 +47,11 @@ const sectionSchema = mongoose.Schema(
   { _id: false }
 );
 
-const courseSchema = mongoose.Schema(
+const courseSchema = new mongoose.Schema(
   {
     createdBy: {
-      type: mongoose.Types.ObjectId,
-      ref: User,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
       required: true,
     },
     title: {
@@ -73,10 +72,22 @@ const courseSchema = mongoose.Schema(
     category: {
       type: String,
     },
+    basePrice: {
+      currency: {
+        type: String,
+        enum: ["INR", "USD", "EUR", "GBP", "AUD", "JPY"],
+        required: true,
+        default: "INR",
+      },
+      amount: {
+        type: Number,
+        required: true,
+      },
+    },
   },
   { timestamps: true }
 );
 
-const Course = mongoose.model("Course", courseSchema);
+const Course = new mongoose.model("Course", courseSchema);
 
 export default Course;

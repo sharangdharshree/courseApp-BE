@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { jsonwebtoken as jwt } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 
 const userSchema = new mongoose.Schema(
   {
@@ -35,7 +35,7 @@ const userSchema = new mongoose.Schema(
     purchases: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: Purchase,
+        ref: "Purchase",
       },
     ],
     refreshToken: {
@@ -75,6 +75,6 @@ userSchema.method.generateRefreshToken = () => {
   );
 };
 
-const User = mongoose.model("User", userSchema);
+const User = new mongoose.model("User", userSchema);
 
 export default User;

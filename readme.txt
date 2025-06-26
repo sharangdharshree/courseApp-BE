@@ -7,7 +7,7 @@
 
    2. db connection logic done in db file, connection function executed in the entry file index.js, app listening set to port
 
-   3. define schema and models 
+   3. define schema and models : DONE
 
    4. define controllers, with middleware and validators 
 
@@ -21,6 +21,7 @@
 
 
 
+// defined user routes and controller, zod schema validation for user controllers, set global middlewares in app
 
 
 // csrf protection
