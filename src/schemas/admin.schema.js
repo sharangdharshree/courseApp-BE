@@ -8,12 +8,13 @@ const registerSchema = z.object({
     .min(6)
     .regex(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()])$/),
   phone: z.number().gte(1000000000).lte(9999999999).nonnegative(),
+  role: z.string().trim().min(4).max(5).toUpperCase(),
 });
 const loginSchema = z.object({
   email: z.email().trim().toLowerCase(),
   password: z.string().min(6),
 });
-const userUpdateSchema = z.object({
+const adminUpdateSchema = z.object({
   fullName: z.string().trim().toLowerCase().min(2),
 });
 const passwordChangeSchema = z.object({
@@ -24,4 +25,4 @@ const passwordChangeSchema = z.object({
     .regex(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()])$/),
 });
 
-export { registerSchema, loginSchema, userUpdateSchema, passwordChangeSchema };
+export { registerSchema, loginSchema, adminUpdateSchema, passwordChangeSchema };

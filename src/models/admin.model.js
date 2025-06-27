@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 
-const userSchema = new mongoose.Schema(
+const adminSchema = new mongoose.Schema(
   {
     email: {
       type: String,
@@ -27,10 +27,19 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    purchases: [
+    role: {
+      type: String,
+      enum: ["ADMIN", "SUPERADMIN"],
+      default: "ADMIN",
+    },
+    permissions: {
+      type: [String],
+      default: [],
+    },
+    courses: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Purchase",
+        ref: "Course",
       },
     ],
     refreshToken: {
@@ -41,15 +50,16 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-userSchema.method.isPasswordCorrect = async (password) => {
+adminSchema.method.isPasswordCorrect = async (password) => {
   return await bcrypt.compare(password, this.password);
 };
-userSchema.method.generateAccessToken = () => {
+adminSchema.method.generateAccessToken = () => {
   return jwt.sign(
     {
       _id: this._id,
       email: this.email,
       fullName: this.fullName,
+      role: this.role,
     },
     process.env.ACCESS_TOKEN_SECRET,
     {
@@ -57,7 +67,7 @@ userSchema.method.generateAccessToken = () => {
     }
   );
 };
-userSchema.method.generateRefreshToken = () => {
+adminSchema.method.generateRefreshToken = () => {
   return jwt.sign(
     {
       _id: this._id,
@@ -69,6 +79,6 @@ userSchema.method.generateRefreshToken = () => {
   );
 };
 
-const User = new mongoose.model("User", userSchema);
+const Admin = new mongoose.model("Admin", adminSchema);
 
-export default User;
+export default Admin;

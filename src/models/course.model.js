@@ -23,9 +23,12 @@ const contentSchema = new mongoose.Schema(
     size: {
       type: Number,
     },
+    thumbnail: {
+      type: String,
+    },
     uploadTime: {
       type: Date,
-      default: Date,
+      required: true,
     },
   },
   { _id: false }
@@ -42,7 +45,10 @@ const sectionSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    contents: [contentSchema],
+    contents: {
+      type: [contentSchema],
+      default: [],
+    },
   },
   { _id: false }
 );
@@ -51,7 +57,7 @@ const courseSchema = new mongoose.Schema(
   {
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Admin",
       required: true,
     },
     title: {
@@ -72,7 +78,10 @@ const courseSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    sections: [sectionSchema],
+    sections: {
+      type: [sectionSchema],
+      default: [],
+    },
     category: {
       type: String,
     },
@@ -86,7 +95,12 @@ const courseSchema = new mongoose.Schema(
       amount: {
         type: Number,
         required: true,
+        default: 0,
       },
+    },
+    isPublished: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }

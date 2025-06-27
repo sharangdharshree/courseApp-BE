@@ -1,11 +1,3 @@
-import jwt from "jsonwebtoken";
-import {
-  registerSchema,
-  loginSchema,
-  userUpdateSchema,
-  passwordChangeSchema,
-} from "../schemas/user.schema.js";
-import { verifyJwt } from "../middlewares/auth.middleware.js";
 import bcrypt from "bcrypt";
 import User from "../models/user.model.js";
 import Purchase from "../models/purchase.model.js";
@@ -37,7 +29,7 @@ const registerUser = asyncHandler(async (req, res) => {
   // validated with middleware in the route itself
 
   //take data
-  const [fullName, email, password, phone, role] = req.body;
+  const [fullName, email, password, phone] = req.body;
 
   // check if user already registered
   const existedUser = await User.findOne({
@@ -53,7 +45,6 @@ const registerUser = asyncHandler(async (req, res) => {
     email: email,
     password: await bcrypt(password, 10),
     phone: phone,
-    role: role,
   });
 
   // create response
@@ -87,7 +78,7 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 
   // generate access and refresh tokens
-  const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+  const { accessToken, refreshToken } = generateAccessAndRefreshTokens(
     user._id
   );
 
