@@ -13,12 +13,17 @@
       : user related controller, validators, middleware DONE
       : public controller: DONE
       : admin controllers: DONE
-      : then course controller...
+      : then course controller: DONE
    5. define routes 
       : user routes defined: DONE
       : public route: DONE 
       : admin route: DONE
-      : then course route...
+      : then course route: DONE
+
+      // course routing could be improve instead of course/:id/create or update section or content and sending the respective section id and content id in body, 
+      // we can create routes like following: course/:courseId/:sectionId/operations like create, update, delete
+      // and /:courseId/:sectionId/:contentId/operations
+
    6. testing 
 
    7. backend deploy 

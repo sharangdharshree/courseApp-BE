@@ -4,12 +4,15 @@ const contentSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["video", "pdf", "file", "link", "other"],
       required: true,
     },
     title: {
       type: String,
       trim: true,
+      required: true,
+    },
+    publicId: {
+      type: String,
       required: true,
     },
     url: {
@@ -31,8 +34,22 @@ const contentSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { _id: false }
+  { timestamps: true }
 );
+const Content = new mongoose.model("Content", contentSchema);
+
+contentSchema.pre("save", async function name(params) {});
+
+contentSchema.method.generateThumbnailUrl = (publicId) => {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+
+  const width = 300;
+  const height = 300;
+  const crop = "fill";
+  const quality = "auto";
+
+  return `https://res.cloudinary.com/${cloudName}/image/upload/w_${width},h_${height},c_${crop},q_${quality}/${publicId}.jpg`;
+};
 
 const sectionSchema = new mongoose.Schema(
   {
@@ -46,12 +63,18 @@ const sectionSchema = new mongoose.Schema(
       trim: true,
     },
     contents: {
-      type: [contentSchema],
+      type: [
+        {
+          type: mongoose.Types.ObjectId,
+          ref: " Content",
+        },
+      ],
       default: [],
     },
   },
-  { _id: false }
+  { timestamps: true }
 );
+const Section = new mongoose.model("Section", sectionSchema);
 
 const courseSchema = new mongoose.Schema(
   {
@@ -79,7 +102,12 @@ const courseSchema = new mongoose.Schema(
       required: true,
     },
     sections: {
-      type: [sectionSchema],
+      type: [
+        {
+          type: mongoose.Types.ObjectId,
+          ref: "Section",
+        },
+      ],
       default: [],
     },
     category: {
@@ -108,4 +136,4 @@ const courseSchema = new mongoose.Schema(
 
 const Course = new mongoose.model("Course", courseSchema);
 
-export default Course;
+export { Course, Section, Content };

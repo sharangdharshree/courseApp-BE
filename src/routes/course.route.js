@@ -8,7 +8,7 @@ import {
   addContent,
   updateContent,
   deleteContent,
-} from "../controllers/course.controller";
+} from "../controllers/course.controller.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import { sectionSchema, contentSchema } from "../schemas/course.schema.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -21,6 +21,9 @@ router.route("/:id/learn").get(verifyJwt, getCourse);
 
 // routes for admin
 // add section, update section, delete section, add content, update content, delete content
+
+// course dashboard, fetch all course records for admin
+router.route("/:id/dashboard").get(verifyJwt, getCourse);
 router
   .route("/:id/add-section")
   .post(verifyJwt, validate(sectionSchema), addSection);
@@ -31,10 +34,20 @@ router.route("/:id/delete-section").delete(verifyJwt, deleteSection);
 
 router
   .route("/:id/add-content")
-  .post(verifyJwt, validate(contentSchema), addContent);
+  .post(
+    verifyJwt,
+    validate(contentSchema),
+    upload.single("content"),
+    addContent
+  );
 router
   .route("/:id/update-content")
-  .put(verifyJwt, validate(contentSchema), updateContent);
+  .put(
+    verifyJwt,
+    validate(contentSchema),
+    upload.single("content"),
+    updateContent
+  );
 router.route("/:id/delete-content").delete(verifyJwt, deleteContent);
 
 export default router;

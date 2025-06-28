@@ -1,4 +1,4 @@
-import { overwrite, z } from "zod/v4";
+import { z } from "zod/v4";
 
 const courseSchema = z.object({
   title: z.string().trim(),
@@ -7,12 +7,17 @@ const courseSchema = z.object({
   category: z.string(),
 });
 
-const sectionSchema = z.object();
-
-const priceSchema = z.object({
-  amount: z.number().gte(1).nonnegative(),
+const sectionSchema = z.object({
+  title: z.string().trim(),
+  description: z.string().trim(),
 });
 
-const contentSchema = z.object();
+const priceSchema = z.object({
+  amount: z.number().gte(0).nonnegative(),
+});
+
+const contentSchema = z.object({
+  title: z.string().trim(),
+});
 
 export { courseSchema, sectionSchema, priceSchema, contentSchema };
