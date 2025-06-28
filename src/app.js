@@ -28,7 +28,7 @@ import publicRouter from "./routes/public.route.js";
 import adminRouter from "./routes/admin.route.js";
 import courseRouter from "./routes/course.route.js";
 // route declaration
-app.use("/api/v1/users", userRouter);
+app.use("/api/v1/user", userRouter);
 app.use("/api/v1/public", publicRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("api/v1/course", courseRouter);

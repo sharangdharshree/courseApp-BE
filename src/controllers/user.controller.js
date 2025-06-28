@@ -6,13 +6,13 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
-const generateAccessAndRefreshTokens = asyncHandler(async (userId) => {
+const generateAccessAndRefreshTokens = async (userId) => {
   try {
-    const user = User.findById(userId);
+    const user = await User.findById(userId);
 
     const refreshToken = user.generateRefreshToken();
     user.refreshToken = refreshToken;
-    await user.save();
+    await user.save({ validateBeforeSave: false });
 
     const accessToken = user.generateAccessToken();
 
@@ -23,121 +23,157 @@ const generateAccessAndRefreshTokens = asyncHandler(async (userId) => {
       "Something went wrong while generating refresh and access token"
     );
   }
-});
+};
 
 const registerUser = asyncHandler(async (req, res) => {
-  // validated with middleware in the route itself
+  try {
+    // check if not already logged in
+    const token =
+      req.cookies?.accessToken ||
+      req.header("Authorization")?.replace("Bearer ", "");
+    if (token) {
+      throw new ApiError(401, "Already logged in, logout first");
+    }
 
-  //take data
-  const [fullName, email, password, phone] = req.body;
+    // validated with middleware in the route itself
+    //take data
+    const { fullName, email, password, phone } = req.body;
 
-  // check if user already registered
-  const existedUser = await User.findOne({
-    $or: [{ email }, { phone }],
-  });
-  if (existedUser) {
-    throw new ApiError(409, "User with email or phone exists");
+    // check if user already registered
+    const existedUser = await User.findOne({
+      $or: [{ email }, { phone }],
+    });
+    if (existedUser) {
+      throw new ApiError(409, "User with this email or phone already exists");
+    }
+
+    // create user object and store in db
+    const user = await User.create({
+      fullName: fullName,
+      email: email,
+      password: await bcrypt.hash(password, 10),
+      phone: phone,
+    });
+
+    // create response
+    const createdUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
+    if (!createdUser) {
+      throw new ApiError(
+        500,
+        "Something went wrong while registering the User"
+      );
+    }
+    //send response
+    return res
+      .status(201)
+      .json(new ApiResponse(200, createdUser, "User registered successfully"));
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "Something went wrong while registering the user"
+    );
   }
-
-  // create user object and store in db
-  const user = await User.create({
-    fullName: fullName,
-    email: email,
-    password: await bcrypt(password, 10),
-    phone: phone,
-  });
-
-  // create response
-  const createdUser = await User.findById(user._id).select(
-    "-password -refreshToken"
-  );
-  if (!createdUser) {
-    throw new ApiError(500, "Something went wrong while registering the User");
-  }
-  //send response
-  return res
-    .status(201)
-    .json(new ApiResponse(200, createdUser, "User registered successfully"));
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-  //validated input with middleware in route
+  try {
+    // check if not already logged in
+    const token =
+      req.cookies?.accessToken ||
+      req.header("Authorization")?.replace("Bearer ", "");
+    if (token) {
+      throw new ApiError(401, "Already logged in, logout first");
+    }
 
-  //take data
-  const [email, password] = req.body;
+    //validated input with middleware in route
+    //take data
+    const { email, password } = req.body;
 
-  // check if user exists
-  const user = await User.findOne(email);
-  if (!user) {
-    throw new ApiError(401, "User not exist");
-  }
+    // check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw new ApiError(401, "User not exist");
+    }
 
-  // check if password correct
-  if (!user.isPasswordCorrect(password)) {
-    throw new ApiError(401, "Wrong password");
-  }
+    // check if password correct
+    const isPasswordValid = await user.isPasswordCorrect(password);
+    if (!isPasswordValid) {
+      throw new ApiError(401, "Wrong password");
+    }
 
-  // generate access and refresh tokens
-  const { accessToken, refreshToken } = generateAccessAndRefreshTokens(
-    user._id
-  );
-
-  // create and send response and cookie
-  const loggedInUser = await User.findById(user._id).select(
-    "-password -refreshToken"
-  );
-  const options = {
-    httpOnly: true,
-    secure: true,
-  };
-  return res
-    .status(200)
-    .cookie("accessToken", accessToken, options)
-    .cookie("refreshToken", refreshToken, options)
-    .json(
-      new ApiResponse(
-        200,
-        {
-          user: loggedInUser,
-          accessToken,
-          refreshToken,
-        },
-        "User logged in successfully"
-      )
+    // generate access and refresh tokens
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+      user._id
     );
+
+    // create and send response and cookie
+    const loggedInUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            user: loggedInUser,
+            accessToken,
+            refreshToken,
+          },
+          "User logged in successfully"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(500, error?.message || "Something went wrong at login");
+  }
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
-  // find and clear refresh token from user document
-  await User.findByIdAndUpdate(
-    req.user._id,
-    {
-      $set: {
-        refreshToken: undefined,
+  try {
+    // find and clear refresh token from user document
+    await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $set: {
+          refreshToken: undefined,
+        },
       },
-    },
-    {
-      new: true,
-    }
-  );
+      {
+        new: true,
+      }
+    );
 
-  // clear cookies and send response
-  const options = {
-    httpOnly: true,
-    secure: true,
-  };
+    // clear cookies and send response
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
 
-  return res
-    .status(200)
-    .clearCookie("accessToken", options)
-    .clearCookie("refreshToken", options)
-    .json(new ApiResponse(200, {}, "User logged out successfully"));
+    return res
+      .status(200)
+      .clearCookie("accessToken", options)
+      .clearCookie("refreshToken", options)
+      .json(new ApiResponse(200, {}, "User logged out successfully"));
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "Something went wrong while logging out"
+    );
+  }
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
   try {
     //verify refresh token
-    const refreshToken = req.cookie?.refreshToken;
+    const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
       throw new ApiError(401, "Send valid refresh token");
     }
@@ -146,16 +182,15 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       secure: true,
     };
 
-    // check if send token matches with the DB token
-    const user = User.findOne({ refreshToken: refreshToken });
-
+    // check if received token matches with the DB token
     // if not matches, then signin expired, require signin to authenticate
+    const user = await User.findOne({ refreshToken: refreshToken });
     if (!user) {
       throw new ApiError(401, "Unauthorized access, signin required");
     }
 
     // if incoming token matches with db token, then generate fresh access token
-    const freshAccessToken = user.generateAccessToken();
+    const freshAccessToken = await user.generateAccessToken();
     return res
       .status(200)
       .cookie("accessToken", freshAccessToken, options)
@@ -172,13 +207,20 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
-  const user = req.user;
-  if (!user) {
-    throw new ApiError(502, "Something went wrong while fetching user data");
+  try {
+    const user = req.user;
+    if (!user) {
+      throw new ApiError(502, "Something went wrong while fetching user data");
+    }
+    return res
+      .status(201)
+      .json(new ApiResponse(201, user, "User data successfully fetched"));
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "Something went wrong while fetching user detail"
+    );
   }
-  return res
-    .status(201)
-    .json(new ApiResponse(201, user, "User data successfully fetched"));
 });
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
@@ -194,7 +236,9 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     }
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
-    const updatedUser = user.select("-password -refreshToken");
+    const updatedUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
     return res
       .status(201)
       .json(
@@ -214,7 +258,9 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     }
     user.fullName = fullName;
     await user.save();
-    const updatedUser = user.select("-password -refreshToken");
+    const updatedUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
     return res
       .status(201)
       .json(new ApiResponse(201, updatedUser, "Account update successful"));
@@ -296,7 +342,10 @@ const getAllPurchasedCourse = asyncHandler(async (req, res) => {
       "Purchased courses fetched successfully"
     );
   } catch (error) {
-    throw new ApiError(500, error?.message || "Something went wrong");
+    throw new ApiError(
+      500,
+      error?.message || "Something went wrong while fetching purchased courses"
+    );
   }
 });
 

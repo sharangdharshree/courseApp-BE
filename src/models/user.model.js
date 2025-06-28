@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 
 const userSchema = new mongoose.Schema(
   {
@@ -41,10 +42,17 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-userSchema.method.isPasswordCorrect = async (password) => {
-  return await bcrypt.compare(password, this.password);
+// error coming due to use of arrow function in schema method
+// Error: Cannot read properties of undefined (reading 'password')
+// arrow functions do not have their own "this" binding in JavaScript.
+// use regular function () {} syntax
+/*userSchema.methods.isPasswordCorrect = async => (password) {
+  return bcrypt.compare(password, this.password);
+};*/
+userSchema.methods.isPasswordCorrect = async function (password) {
+  return bcrypt.compare(password, this.password);
 };
-userSchema.method.generateAccessToken = () => {
+userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
       _id: this._id,
@@ -57,7 +65,7 @@ userSchema.method.generateAccessToken = () => {
     }
   );
 };
-userSchema.method.generateRefreshToken = () => {
+userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {
       _id: this._id,

@@ -6,7 +6,10 @@ const registerSchema = z.object({
   password: z
     .string()
     .min(6)
-    .regex(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()])$/),
+    .regex(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()]).+$/, {
+      message:
+        "Password must contain at least one letter, one number and one special character (!@#$%^&*())",
+    }),
   phone: z.number().gte(1000000000).lte(9999999999).nonnegative(),
 });
 const loginSchema = z.object({
@@ -21,7 +24,7 @@ const passwordChangeSchema = z.object({
   newPassword: z
     .string()
     .min(6)
-    .regex(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()])$/),
+    .regex(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()]).+$/),
 });
 
 export { registerSchema, loginSchema, userUpdateSchema, passwordChangeSchema };

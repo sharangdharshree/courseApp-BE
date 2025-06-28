@@ -40,7 +40,7 @@ router
   .route("/update-account")
   .put(verifyJwt, validate(userUpdateSchema), updateAccountDetails);
 
-router.route("purchase-course").post(verifyJwt, purchaseCourse);
+router.route("/purchase-course").post(verifyJwt, purchaseCourse);
 
 router.route("/purchased-courses").get(verifyJwt, getAllPurchasedCourse);
 
