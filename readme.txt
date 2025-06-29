@@ -25,6 +25,12 @@
       // and /:courseId/:sectionId/:contentId/operations
 
    6. testing 
+      // user tested for most of the routes, purchase and fet purchased courses functionality yet to test
+      // now will test admin end point, then will create, update, delete courses
+      // add,update, delete section and contents
+      // finally test purchase functionalities
+
+      
 
    7. backend deploy 
 

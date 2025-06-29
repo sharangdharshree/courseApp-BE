@@ -17,37 +17,41 @@ const router = Router();
 
 // routes for user
 // get course contents
-router.route("/:id/learn").get(verifyJwt, getCourse);
+router.route("/:courseId/learn").get(verifyJwt, getCourse);
 
 // routes for admin
 // add section, update section, delete section, add content, update content, delete content
 
 // course dashboard, fetch all course records for admin
-router.route("/:id/dashboard").get(verifyJwt, getCourse);
+router.route("/:courseId/dashboard").get(verifyJwt, getCourse);
 router
-  .route("/:id/add-section")
+  .route("/:courseId/add-section")
   .post(verifyJwt, validate(sectionSchema), addSection);
 router
-  .route("/:id/update-section")
+  .route("/:courseId/:sectionId/update-section")
   .put(verifyJwt, validate(sectionSchema), updateSection);
-router.route("/:id/delete-section").delete(verifyJwt, deleteSection);
+router
+  .route("/:courseId/:sectionId/delete-section")
+  .delete(verifyJwt, deleteSection);
 
 router
-  .route("/:id/add-content")
+  .route("/:courseId/:sectionId/add-content")
   .post(
     verifyJwt,
-    validate(contentSchema),
     upload.single("content"),
+    validate(contentSchema),
     addContent
   );
 router
-  .route("/:id/update-content")
+  .route("/:courseId/:sectionId/:contentId/update-content")
   .put(
     verifyJwt,
-    validate(contentSchema),
     upload.single("content"),
+    validate(contentSchema),
     updateContent
   );
-router.route("/:id/delete-content").delete(verifyJwt, deleteContent);
+router
+  .route("/:courseId/:sectionId/:contentId/delete-content")
+  .delete(verifyJwt, deleteContent);
 
 export default router;

@@ -14,7 +14,7 @@ const generateAccessAndRefreshTokens = async (userId) => {
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
-    const accessToken = user.generateAccessToken();
+    const accessToken = await user.generateAccessToken();
 
     return { accessToken, refreshToken };
   } catch (error) {
@@ -143,7 +143,7 @@ const logoutUser = asyncHandler(async (req, res) => {
       req.user._id,
       {
         $set: {
-          refreshToken: undefined,
+          refreshToken: "",
         },
       },
       {
@@ -271,16 +271,13 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
 const purchaseCourse = asyncHandler(async (req, res) => {
   try {
-    const [
-      amountBreakdown,
-      paymentStatus,
-      paymentMethod,
-      transactionId,
-      courseId,
-    ] = req.body;
+    const { amountBreakdown, paymentStatus, paymentMethod, transactionId } =
+      req.body;
+    const courseId = req.params.courseId;
     if (paymentStatus !== "SUCCESS") {
       throw new ApiError(401, "Payment not successful");
     }
+
     const user = await User.findById(req.user._id);
     const course = await Course.findById(courseId);
     if (!user || !course) {
@@ -293,8 +290,8 @@ const purchaseCourse = asyncHandler(async (req, res) => {
       owner: user,
       course: course,
       amountBreakdown: {
-        currency: amountBreakdown.currency,
-        mrp: amountBreakdown.mrp,
+        currency: course.basePrice.currency,
+        mrp: course.basePrice.amount,
         netDiscount: amountBreakdown.netDiscount,
         couponUsed: amountBreakdown.couponUsed,
         totalAmountPaid: amountBreakdown.totalAmountPaid,
@@ -305,14 +302,18 @@ const purchaseCourse = asyncHandler(async (req, res) => {
       purchaseStatus: "COMPLETED",
       purchasedAt: new Date(),
     });
-    purchase.invoiceNumber = purchase.generateInvoice();
-    await purchase.save();
+    if (purchase.paymentStatus === "COMPLETED") {
+      purchase.invoiceNumber = purchase.generateInvoice();
+      await purchase.save();
+    }
 
     // adding purchased coursed to users db
     user.purchases.push(purchase);
     await user.save();
 
-    const updatedUser = user.select("-password -refreshToken");
+    const updatedUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
 
     return res
       .status(201)
@@ -327,20 +328,22 @@ const purchaseCourse = asyncHandler(async (req, res) => {
 
 const getAllPurchasedCourse = asyncHandler(async (req, res) => {
   try {
-    const user = User.findById(req.user._id);
+    const user = await User.findById(req.user._id)
+      .populate({ path: "purchases" })
+      .select("-password -refreshToken");
     if (!user) {
       throw new ApiError(401, "User not found");
     }
-    const purchases = user.purchases;
-    const purchasedCourses = [];
-    for (let i = 0; i < purchases.length; i++) {
-      purchasedCourses.push(await Purchase.findOne(purchases[i]).course);
-    }
-    return res.status(
-      202,
-      { purchasedCourses },
-      "Purchased courses fetched successfully"
-    );
+
+    return res
+      .status(202)
+      .json(
+        new ApiResponse(
+          200,
+          user.purchases,
+          "all user's purchases fetched successfully"
+        )
+      );
   } catch (error) {
     throw new ApiError(
       500,

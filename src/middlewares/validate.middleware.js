@@ -1,7 +1,7 @@
 import { ApiError } from "../utils/ApiError.js";
 
 export function validate(Schema) {
-  return (req, res, next) => {
+  return (req, _, next) => {
     try {
       req.body = Schema.parse(req.body);
       next();

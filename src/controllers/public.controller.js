@@ -9,8 +9,8 @@ const homePage = asyncHandler(async (req, res) => {
 
 const getAllCourses = asyncHandler(async (req, res) => {
   try {
-    const courses = await Course.find().select(
-      "-createdBy -description -sections -category"
+    const courses = await Course.find({ isPublished: true }).select(
+      "-createdBy -description -sections"
     );
 
     return res
@@ -23,11 +23,11 @@ const getAllCourses = asyncHandler(async (req, res) => {
 
 const getCourse = asyncHandler(async (req, res) => {
   try {
-    const courseId = req.body?.courseId;
+    const courseId = req.params.courseId;
     if (!courseId) {
       throw new ApiError(401, "Send valid courseId");
     }
-    const course = await Course.findOne({ courseId }).select("-sections");
+    const course = await Course.findById(courseId).select("-sections");
     if (!course) {
       throw new ApiError(404, "Course not found");
     }

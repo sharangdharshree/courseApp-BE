@@ -19,6 +19,7 @@ import {
   userUpdateSchema,
 } from "../schemas/user.schema.js";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
+import { purchaseSchema } from "../schemas/purchase.schema.js";
 
 const router = Router();
 
@@ -40,7 +41,9 @@ router
   .route("/update-account")
   .put(verifyJwt, validate(userUpdateSchema), updateAccountDetails);
 
-router.route("/purchase-course").post(verifyJwt, purchaseCourse);
+router
+  .route("/:courseId/purchase-course")
+  .post(verifyJwt, validate(purchaseSchema), purchaseCourse);
 
 router.route("/purchased-courses").get(verifyJwt, getAllPurchasedCourse);
 

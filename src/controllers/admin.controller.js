@@ -1,20 +1,23 @@
 import bcrypt from "bcrypt";
 import Admin from "../models/admin.model.js";
-import { Course } from "../models/course.model.js";
+import { Content, Course, Section } from "../models/course.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  deleteFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
 
-const generateAccessAndRefreshTokens = asyncHandler(async (adminId) => {
+const generateAccessAndRefreshTokens = async (adminId) => {
   try {
-    const admin = Admin.findById(adminId);
+    const admin = await Admin.findById(adminId);
 
     const refreshToken = admin.generateRefreshToken();
     admin.refreshToken = refreshToken;
-    await admin.save();
+    await admin.save({ validateBeforeSave: false });
 
-    const accessToken = admin.generateAccessToken();
+    const accessToken = await admin.generateAccessToken();
 
     return { accessToken, refreshToken };
   } catch (error) {
@@ -23,121 +26,159 @@ const generateAccessAndRefreshTokens = asyncHandler(async (adminId) => {
       "Something went wrong while generating refresh and access token"
     );
   }
-});
+};
 
 const registerAdmin = asyncHandler(async (req, res) => {
-  // validated with middleware in the route itself
+  try {
+    // check if not already logged in
+    const token =
+      req.cookies?.accessToken ||
+      req.header("Authorization")?.replace("Bearer ", "");
+    if (token) {
+      throw new ApiError(401, "Already logged in, logout first");
+    }
 
-  //take data
-  const [fullName, email, password, phone] = req.body;
+    // validated with middleware in the route itself
+    //take data
+    const { fullName, email, password, phone } = req.body;
 
-  // check if admin already registered
-  const existedAdmin = await Admin.findOne({
-    $or: [{ email }, { phone }],
-  });
-  if (existedAdmin) {
-    throw new ApiError(409, "Admin with email or phone exists");
+    // check if admin already registered
+    const existedAdmin = await Admin.findOne({
+      $or: [{ email }, { phone }],
+    });
+    if (existedAdmin) {
+      throw new ApiError(409, "Admin with email or phone exists");
+    }
+
+    // create admin object and store in db
+    const admin = await Admin.create({
+      fullName: fullName,
+      email: email,
+      password: await bcrypt.hash(password, 10),
+      phone: phone,
+    });
+
+    // create response
+    const createdAdmin = await Admin.findById(admin._id).select(
+      "-password -refreshToken"
+    );
+    if (!createdAdmin) {
+      throw new ApiError(
+        500,
+        "Something went wrong while registering the admin"
+      );
+    }
+    //send response
+    return res
+      .status(201)
+      .json(
+        new ApiResponse(200, createdAdmin, "Admin registered successfully")
+      );
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "Something went wrong while registering the admin"
+    );
   }
-
-  // create admin object and store in db
-  const admin = await Admin.create({
-    fullName: fullName,
-    email: email,
-    password: await bcrypt(password, 10),
-    phone: phone,
-  });
-
-  // create response
-  const createdAdmin = await Admin.findById(admin._id).select(
-    "-password -refreshToken"
-  );
-  if (!createdAdmin) {
-    throw new ApiError(500, "Something went wrong while registering the admin");
-  }
-  //send response
-  return res
-    .status(201)
-    .json(new ApiResponse(200, createdAdmin, "Admin registered successfully"));
 });
 
 const loginAdmin = asyncHandler(async (req, res) => {
-  //validated input with middleware in route
+  try {
+    // check if not already logged in
+    const token =
+      req.cookies?.accessToken ||
+      req.header("Authorization")?.replace("Bearer ", "");
+    if (token) {
+      throw new ApiError(401, "Already logged in, logout first");
+    }
 
-  //take data
-  const [email, password] = req.body;
+    //validated input with middleware in route
+    //take data
+    const { email, password } = req.body;
 
-  // check if admin exists
-  const admin = await Admin.findOne(email);
-  if (!admin) {
-    throw new ApiError(401, "admin not exist");
-  }
+    // check if admin exists
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      throw new ApiError(401, "admin not exist");
+    }
 
-  // check if password correct
-  if (!admin.isPasswordCorrect(password)) {
-    throw new ApiError(401, "Wrong password");
-  }
+    // check if password correct
+    const isPasswordValid = await admin.isPasswordCorrect(password);
+    if (!isPasswordValid) {
+      throw new ApiError(401, "Wrong password");
+    }
 
-  // generate access and refresh tokens
-  const { accessToken, refreshToken } = generateAccessAndRefreshTokens(
-    admin._id
-  );
-
-  // create and send response and cookie
-  const loggedInAdmin = await Admin.findById(admin._id).select(
-    "-password -refreshToken"
-  );
-  const options = {
-    httpOnly: true,
-    secure: true,
-  };
-  return res
-    .status(200)
-    .cookie("accessToken", accessToken, options)
-    .cookie("refreshToken", refreshToken, options)
-    .json(
-      new ApiResponse(
-        200,
-        {
-          admin: loggedInAdmin,
-          accessToken,
-          refreshToken,
-        },
-        "admin logged in successfully"
-      )
+    // generate access and refresh tokens
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+      admin._id
     );
+
+    // create and send response and cookie
+    const loggedInAdmin = await Admin.findById(admin._id).select(
+      "-password -refreshToken"
+    );
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            admin: loggedInAdmin,
+            accessToken,
+            refreshToken,
+          },
+          "admin logged in successfully"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(500, error?.message || "Something went wrong at login");
+  }
 });
 
 const logoutAdmin = asyncHandler(async (req, res) => {
-  // find and clear refresh token from admin document
-  await Admin.findByIdAndUpdate(
-    req.admin._id,
-    {
-      $set: {
-        refreshToken: undefined,
+  try {
+    // find and clear refresh token from admin document
+    await Admin.findByIdAndUpdate(
+      req.admin._id,
+      {
+        $set: {
+          refreshToken: "",
+        },
       },
-    },
-    {
-      new: true,
-    }
-  );
+      {
+        new: true,
+      }
+    );
 
-  // clear cookies and send response
-  const options = {
-    httpOnly: true,
-    secure: true,
-  };
+    // clear cookies and send response
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
 
-  return res
-    .status(200)
-    .clearCookie("accessToken", options)
-    .clearCookie("refreshToken", options)
-    .json(new ApiResponse(200, {}, "admin logged out successfully"));
+    return res
+      .status(200)
+      .clearCookie("accessToken", options)
+      .clearCookie("refreshToken", options)
+      .json(new ApiResponse(200, {}, "admin logged out successfully"));
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "Something went wrong while logging out"
+    );
+  }
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
   try {
     //verify refresh token
-    const refreshToken = req.cookie?.refreshToken;
+    const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
       throw new ApiError(401, "Send valid refresh token");
     }
@@ -147,7 +188,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     };
 
     // check if send token matches with the DB token
-    const admin = Admin.findOne({ refreshToken: refreshToken });
+    const admin = await Admin.findOne({ refreshToken: refreshToken });
 
     // if not matches, then signin expired, require signin to authenticate
     if (!admin) {
@@ -155,7 +196,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 
     // if incoming token matches with db token, then generate fresh access token
-    const freshAccessToken = admin.generateAccessToken();
+    const freshAccessToken = await admin.generateAccessToken();
     return res
       .status(200)
       .cookie("accessToken", freshAccessToken, options)
@@ -172,13 +213,20 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const getCurrentAdmin = asyncHandler(async (req, res) => {
-  const admin = req.admin;
-  if (!admin) {
-    throw new ApiError(502, "Something went wrong while fetching admin data");
+  try {
+    const admin = req.admin;
+    if (!admin) {
+      throw new ApiError(502, "Something went wrong while fetching admin data");
+    }
+    return res
+      .status(201)
+      .json(new ApiResponse(201, admin, "admin data successfully fetched"));
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "Something went wrong while fetching admin detail"
+    );
   }
-  return res
-    .status(201)
-    .json(new ApiResponse(201, { admin }, "admin data successfully fetched"));
 });
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
@@ -194,7 +242,9 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     }
     admin.password = await bcrypt.hash(newPassword, 10);
     await admin.save();
-    const updatedAdmin = admin.select("-password -refreshToken");
+    const updatedAdmin = await Admin.findById(admin._id).select(
+      "-password -refreshToken"
+    );
     return res
       .status(201)
       .json(
@@ -214,7 +264,9 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     }
     admin.fullName = fullName;
     await admin.save();
-    const updatedAdmin = admin.select("-password -refreshToken");
+    const updatedAdmin = await Admin.findById(admin._id).select(
+      "-password -refreshToken"
+    );
     return res
       .status(201)
       .json(new ApiResponse(201, updatedAdmin, "Account update successful"));
@@ -249,9 +301,16 @@ const createCourse = asyncHandler(async (req, res) => {
       title: title,
       overview: overview,
       description: description,
-      thumbnail: thumbnail.url,
+      thumbnail: {
+        url: thumbnail.url,
+        publicId: thumbnail.public_id,
+      },
       category: category,
     });
+
+    // add course to admin
+    admin.courses.push(course._id);
+    await admin.save();
 
     //send response
     return res
@@ -271,13 +330,14 @@ const updateCourse = asyncHandler(async (req, res) => {
     const { title, overview, description, category } = req.body;
 
     // check if course valid
-    const course = await Course.findById(req.body.courseId);
+
+    const course = await Course.findById(req.params.courseId);
     if (!course) {
       throw new ApiError(401, "Course not found");
     }
 
     // if admin has the authorization for this operation on this course
-    if (course.createdBy !== admin) {
+    if (!course.createdBy.equals(admin._id)) {
       throw new ApiError(401, "You don't have permission for this course");
     }
 
@@ -309,13 +369,13 @@ const changeThumbnail = asyncHandler(async (req, res) => {
     const admin = req.admin;
 
     // check if course valid
-    const course = await Course.findById(req.body.courseId);
+    const course = await Course.findById(req.params.courseId);
     if (!course) {
       throw new ApiError(401, "Course not found");
     }
 
     // if admin has the authorization for this operation on this course
-    if (course.createdBy !== admin) {
+    if (!course.createdBy.equals(admin._id)) {
       throw new ApiError(401, "You don't have permission for this course");
     }
 
@@ -325,14 +385,18 @@ const changeThumbnail = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Thumbnail file not found");
     }
 
-    // upload on cloudinary
+    // upload new thumbnail on cloudinary
     const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
     if (!thumbnail.url) {
       throw new ApiError(400, "Thumbnail upload failed");
     }
 
+    // delete old thumbnail
+    await deleteFromCloudinary(course.thumbnail.publicId);
+
     // set new thumbnail for course
-    course.thumbnail = thumbnail.url;
+    course.thumbnail.url = thumbnail.url;
+    course.thumbnail.publicId = thumbnail.public_id;
     const updatedCourse = await course.save();
 
     // send response
@@ -356,18 +420,48 @@ const deleteCourse = asyncHandler(async (req, res) => {
     const admin = req.admin;
 
     // check if course valid
-    const course = await Course.findById(req.body.courseId);
+    const course = await Course.findById(req.params.courseId);
     if (!course) {
       throw new ApiError(401, "Course not found");
     }
 
     // if admin has the authorization for this operation on this course
-    if (course.createdBy !== admin) {
+    if (!course.createdBy.equals(admin._id)) {
       throw new ApiError(401, "You don't have permission for this course");
     }
 
+    //delete all sections, all content, all cloudinary files then delete course
+    for (let i = 0; i < course.sections.length; i++) {
+      const section = await Section.findById(course.sections[i]);
+      for (let j = 0; j < section.contents.length; j++) {
+        const content = await Content.findById(section.contents[i]);
+        // one by one deletion from cloudinary
+        await deleteFromCloudinary(content.publicId);
+        // one by one deletion from Content Schema
+        const deletedContent = await content.deleteOne();
+        if (!deletedContent) {
+          throw new ApiError(400, "Not able to delete contents");
+        }
+      }
+      // one by one deletion from Section Schema
+      const deletedSection = await section.deleteOne();
+      if (!deletedSection) {
+        throw new ApiError(400, "Not able to delete contents");
+      }
+    }
+
     // delete course
-    const deletedCourse = await course.remove();
+    const indexOfDeleted = admin.courses.findIndex(
+      (course) => course === course._id
+    );
+    if (indexOfDeleted == -1) {
+      throw new ApiError(400, "Something went wrong while delete operation");
+    }
+    const deletedCourse = await course.deleteOne();
+
+    // remove reference from admin
+    admin.courses.splice(indexOfDeleted, 1);
+    await admin.save();
 
     // send response
     return res
@@ -386,13 +480,13 @@ const setCoursePrice = asyncHandler(async (req, res) => {
     const admin = req.admin;
 
     // check if course valid
-    const course = await Course.findById(req.body.courseId);
+    const course = await Course.findById(req.params.courseId);
     if (!course) {
       throw new ApiError(401, "Course not found");
     }
 
     // if admin has the authorization for this operation on this course
-    if (course.createdBy !== admin) {
+    if (!course.createdBy.equals(admin._id)) {
       throw new ApiError(401, "You don't have permission for this course");
     }
 
@@ -420,13 +514,13 @@ const publishCourse = asyncHandler(async (req, res) => {
     const admin = req.admin;
 
     // check if course valid
-    const course = await Course.findById(req.body.courseId);
+    const course = await Course.findById(req.params.courseId);
     if (!course) {
       throw new ApiError(401, "Course not found");
     }
 
     // if admin has the authorization for this operation on this course
-    if (course.createdBy !== admin) {
+    if (!course.createdBy.equals(admin._id)) {
       throw new ApiError(401, "You don't have permission for this course");
     }
 
@@ -452,10 +546,13 @@ const publishCourse = asyncHandler(async (req, res) => {
 const getAllCreatedCourse = asyncHandler(async (req, res) => {
   try {
     const admin = req.admin;
-    const courses = await Course.find({ createdBy: admin });
+
+    const courses = await Course.find({ createdBy: admin._id });
     return res
       .status(200)
-      .json(200, { courses }, "All courses fetched successfully");
+      .json(
+        new ApiResponse(200, { courses }, "All Courses fetched successfully")
+      );
   } catch (error) {
     throw new ApiError(500, error?.message || "Something went wrong");
   }

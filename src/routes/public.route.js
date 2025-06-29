@@ -9,6 +9,6 @@ const router = Router();
 
 router.route("/").get(homePage);
 router.route("/all-courses").get(getAllCourses);
-router.route("/all-courses/:id").get(getCourse);
+router.route("/all-courses/:courseId").get(getCourse);
 
 export default router;

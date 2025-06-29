@@ -56,27 +56,32 @@ router
   .route("/create-course")
   .post(
     verifyJwt,
-    validate(courseSchema),
     upload.single("thumbnail"),
+    validate(courseSchema),
     createCourse
   );
 
 router
-  .route("/update-course")
-  .put(verifyJwt, validate(courseSchema), updateCourse);
+  .route("/:courseId/update-course")
+  .put(
+    verifyJwt,
+    upload.single("thumbnail"),
+    validate(courseSchema),
+    updateCourse
+  );
 
 router
-  .route("/change-thumbnail")
+  .route("/:courseId/change-thumbnail")
   .put(verifyJwt, upload.single("thumbnail"), changeThumbnail);
 
-router.route("/delete-course").delete(verifyJwt, deleteCourse);
+router.route("/:courseId/delete-course").delete(verifyJwt, deleteCourse);
 
 router
-  .route("/set-price")
+  .route("/:courseId/set-price")
   .put(verifyJwt, validate(priceSchema), setCoursePrice);
 
-router.route("/publish").put(verifyJwt, publishCourse);
+router.route("/:courseId/publish").put(verifyJwt, publishCourse);
 
-router.route("created-courses").get(verifyJwt, getAllCreatedCourse);
+router.route("/created-courses").get(verifyJwt, getAllCreatedCourse);
 
 export default router;

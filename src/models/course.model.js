@@ -36,11 +36,8 @@ const contentSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-const Content = new mongoose.model("Content", contentSchema);
 
-contentSchema.pre("save", async function name(params) {});
-
-contentSchema.method.generateThumbnailUrl = (publicId) => {
+contentSchema.methods.generateThumbnailUrl = function (publicId) {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
 
   const width = 300;
@@ -50,6 +47,7 @@ contentSchema.method.generateThumbnailUrl = (publicId) => {
 
   return `https://res.cloudinary.com/${cloudName}/image/upload/w_${width},h_${height},c_${crop},q_${quality}/${publicId}.jpg`;
 };
+const Content = new mongoose.model("Content", contentSchema);
 
 const sectionSchema = new mongoose.Schema(
   {
@@ -66,7 +64,7 @@ const sectionSchema = new mongoose.Schema(
       type: [
         {
           type: mongoose.Types.ObjectId,
-          ref: " Content",
+          ref: "Content",
         },
       ],
       default: [],
@@ -98,8 +96,14 @@ const courseSchema = new mongoose.Schema(
       required: true,
     },
     thumbnail: {
-      type: String,
-      required: true,
+      url: {
+        type: String,
+        required: true,
+      },
+      publicId: {
+        type: String,
+        required: true,
+      },
     },
     sections: {
       type: [

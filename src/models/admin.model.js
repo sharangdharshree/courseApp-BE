@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 
 const adminSchema = new mongoose.Schema(
   {
@@ -50,10 +51,10 @@ const adminSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-adminSchema.method.isPasswordCorrect = async (password) => {
+adminSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
-adminSchema.method.generateAccessToken = () => {
+adminSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
       _id: this._id,
@@ -67,7 +68,7 @@ adminSchema.method.generateAccessToken = () => {
     }
   );
 };
-adminSchema.method.generateRefreshToken = () => {
+adminSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {
       _id: this._id,

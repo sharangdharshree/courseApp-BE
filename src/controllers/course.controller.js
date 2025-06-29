@@ -12,7 +12,7 @@ import { Course, Section, Content } from "../models/course.model.js";
 
 const getCourse = asyncHandler(async (req, res) => {
   try {
-    const courseId = req.body.courseId;
+    const courseId = req.params.courseId;
     const user = req?.user;
     const admin = req?.admin;
 
@@ -20,44 +20,34 @@ const getCourse = asyncHandler(async (req, res) => {
       throw new ApiError(401, "Access denied for the course");
     }
 
-    const course = await Course.findById(courseId);
+    const course = await Course.findById(courseId)
+      .populate({
+        path: "sections",
+        populate: { path: "contents" },
+      })
+      .select("-basePrice -isPublished");
 
     if (user) {
       if (
         !user.purchases.includes(
-          await Purchase.findOne({ owner: user, course: course })
+          await Purchase.findOne({ owner: user._id, course: course._id })._id
         )
       ) {
-        throw new ApiError(401, "Access denied for the course");
+        throw new ApiError(401, "User access denied for the course");
       }
     }
     if (admin) {
-      if (!admin.courses.includes(await Course.findById(courseId))) {
-        throw new ApiError(401, "Access denied for the course");
+      if (!admin.courses.includes(course._id)) {
+        console.log(admin);
+        console.log(course);
+        throw new ApiError(401, "Admin access denied for the course");
       }
     }
-
-    // fetch all sections and its contents
-    const sections = [];
-    for (let i = 0; i < course.sections.length; i++) {
-      const contents = [];
-      const tempSection = await Section.findById(course.sections[i]);
-      for (let j = 0; j < tempSection.contents.length; j++) {
-        const tempContent = await Content.findById(tempSection.contents[j]);
-        contents.push(tempContent);
-      }
-      tempSection.contents = contents;
-      sections.push(tempSection);
-    }
-    const responseCourse = course.select("-basePrice -isPublished");
-    responseCourse.sections = sections;
 
     // send full course
     return res
       .status(201)
-      .json(
-        new ApiResponse(201, { responseCourse }, "Course fetched successfully")
-      );
+      .json(new ApiResponse(201, { course }, "Course fetched successfully"));
   } catch (error) {
     throw new ApiError(500, error?.message || "Something went wrong");
   }
@@ -68,7 +58,7 @@ const getCourse = asyncHandler(async (req, res) => {
 const addSection = asyncHandler(async (req, res) => {
   try {
     // fetch and check course
-    const courseId = req.body.courseId;
+    const courseId = req.params.courseId;
     const course = await Course.findById(courseId);
     if (!course) {
       throw new ApiError(400, "Course not found");
@@ -76,12 +66,12 @@ const addSection = asyncHandler(async (req, res) => {
 
     // check if admin is authorized for this course
     const admin = req.admin;
-    if (course.createdBy !== admin) {
+    if (!course.createdBy.equals(admin._id)) {
       throw new ApiError(401, "Admin not authorized for this course");
     }
 
     // take validated section data
-    const [title, description] = req.body;
+    const { title, description } = req.body;
 
     // create section
     const section = await Section.create({
@@ -110,7 +100,7 @@ const addSection = asyncHandler(async (req, res) => {
 const updateSection = asyncHandler(async (req, res) => {
   try {
     // fetch and check section
-    const sectionId = req.body.sectionId;
+    const sectionId = req.params.sectionId;
     const section = await Section.findById(sectionId);
     if (!section) {
       throw new ApiError(400, "Section not found");
@@ -118,14 +108,17 @@ const updateSection = asyncHandler(async (req, res) => {
 
     // check if admin is authorized for this course
     const admin = req.admin;
-    const courseId = req.body.courseId;
+    const courseId = req.params.courseId;
     const course = await Course.findById(courseId);
-    if (course.createdBy !== admin || !course.sections.includes(section)) {
+    if (
+      !course.createdBy.equals(admin._id) ||
+      !course.sections.includes(section._id)
+    ) {
       throw new ApiError(401, "Admin not authorized for this course");
     }
 
     // take validated data and update section
-    const [title, description] = req.body;
+    const { title, description } = req.body;
     section.title = title;
     section.description = description;
     const updatedSection = await section.save();
@@ -146,7 +139,7 @@ const updateSection = asyncHandler(async (req, res) => {
 const deleteSection = asyncHandler(async (req, res) => {
   try {
     // fetch and check section
-    const sectionId = req.body.sectionId;
+    const sectionId = req.params.sectionId;
     const section = await Section.findById(sectionId);
     if (!section) {
       throw new ApiError(400, "Section not found");
@@ -154,9 +147,12 @@ const deleteSection = asyncHandler(async (req, res) => {
 
     // check if admin is authorized for this course
     const admin = req.admin;
-    const courseId = req.body.courseId;
+    const courseId = req.params.courseId;
     const course = await Course.findById(courseId);
-    if (course.createdBy !== admin || !course.sections.includes(section)) {
+    if (
+      !course.createdBy.equals(admin._id) ||
+      !course.sections.includes(section._id)
+    ) {
       throw new ApiError(401, "Admin not authorized for this course");
     }
 
@@ -195,7 +191,7 @@ const deleteSection = asyncHandler(async (req, res) => {
 const addContent = asyncHandler(async (req, res) => {
   try {
     // fetch and check section
-    const sectionId = req.body.sectionId;
+    const sectionId = req.params.sectionId;
     const section = await Section.findById(sectionId);
     if (!section) {
       throw new ApiError(400, "Section not found");
@@ -203,9 +199,12 @@ const addContent = asyncHandler(async (req, res) => {
 
     // check if admin is authorized for this course
     const admin = req.admin;
-    const courseId = req.body.courseId;
+    const courseId = req.params.courseId;
     const course = await Course.findById(courseId);
-    if (course.createdBy !== admin || !course.sections.includes(section)) {
+    if (
+      !course.createdBy.equals(admin._id) ||
+      !course.sections.includes(section._id)
+    ) {
       throw new ApiError(401, "Admin not authorized for this course");
     }
 
@@ -231,6 +230,8 @@ const addContent = asyncHandler(async (req, res) => {
     createdContent.thumbnail = createdContent.generateThumbnailUrl(
       content.public_id
     );
+    // above url is not giving any image, see url generation method
+
     const finalCreatedContent = await createdContent.save();
 
     // add content in section
@@ -254,14 +255,14 @@ const addContent = asyncHandler(async (req, res) => {
 const updateContent = asyncHandler(async (req, res) => {
   try {
     // fetch and check content
-    const contentId = req.body.contentId;
+    const contentId = req.params.contentId;
     const content = await Content.findById(contentId);
     if (!content) {
       throw new ApiError(401, "Content not found");
     }
 
     // fetch and check section
-    const sectionId = req.body.sectionId;
+    const sectionId = req.params.sectionId;
     const section = await Section.findById(sectionId);
     if (!section) {
       throw new ApiError(400, "Section not found");
@@ -269,12 +270,12 @@ const updateContent = asyncHandler(async (req, res) => {
 
     // check if admin is authorized for this course
     const admin = req.admin;
-    const courseId = req.body.courseId;
+    const courseId = req.params.courseId;
     const course = await Course.findById(courseId);
     if (
-      course.createdBy !== admin ||
-      !course.sections.includes(section) ||
-      !section.contents.includes(content)
+      !course.createdBy.equals(admin._id) ||
+      !course.sections.includes(section._id) ||
+      !section.contents.includes(content._id)
     ) {
       throw new ApiError(401, "Admin not authorized for this course");
     }
@@ -313,14 +314,14 @@ const updateContent = asyncHandler(async (req, res) => {
 const deleteContent = asyncHandler(async (req, res) => {
   try {
     // fetch and check content
-    const contentId = req.body.contentId;
+    const contentId = req.params.contentId;
     const content = await Content.findById(contentId);
     if (!content) {
       throw new ApiError(401, "Content not found");
     }
 
     // fetch and check section
-    const sectionId = req.body.sectionId;
+    const sectionId = req.params.sectionId;
     const section = await Section.findById(sectionId);
     if (!section) {
       throw new ApiError(400, "Section not found");
@@ -328,26 +329,33 @@ const deleteContent = asyncHandler(async (req, res) => {
 
     // check if admin is authorized for this course
     const admin = req.admin;
-    const courseId = req.body.courseId;
+    const courseId = req.params.courseId;
     const course = await Course.findById(courseId);
     if (
-      course.createdBy !== admin ||
-      !course.sections.includes(section) ||
-      !section.contents.includes(content)
+      !course.createdBy.equals(admin._id) ||
+      !course.sections.includes(section._id) ||
+      !section.contents.includes(content._id)
     ) {
       throw new ApiError(401, "Admin not authorized for this course");
     }
+    const indexDeletedContent = section.contents.findIndex(
+      (content) => content == content._id
+    );
 
     // remove content from cloudinary
     await deleteFromCloudinary(content.publicId);
     // remove content document
-    const deletedContent = await content.remove();
+    const deletedContent = await content.deleteOne();
+
+    // remove content reference from section
+    section.contents.splice(indexDeletedContent, 1);
+    await section.save();
 
     // send response
     return res
       .status(201)
       .json(
-        new ApiResponse(201, { deleteContent }, "Content deleted successfully")
+        new ApiResponse(201, { deletedContent }, "Content deleted successfully")
       );
   } catch (error) {
     throw new ApiError(500, error?.message || "Something went wrong");

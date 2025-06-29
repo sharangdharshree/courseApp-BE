@@ -31,6 +31,6 @@ import courseRouter from "./routes/course.route.js";
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/public", publicRouter);
 app.use("/api/v1/admin", adminRouter);
-app.use("api/v1/course", courseRouter);
+app.use("/api/v1/course", courseRouter);
 
 export default app;
