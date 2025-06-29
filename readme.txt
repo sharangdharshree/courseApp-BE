@@ -32,7 +32,7 @@
 
       
 
-   7. backend deploy 
+   7. backend deploy: seeing Render platform ....
 
    7. frontend work starts 
 
