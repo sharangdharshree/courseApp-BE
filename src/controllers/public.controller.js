@@ -27,7 +27,10 @@ const getCourse = asyncHandler(async (req, res) => {
     if (!courseId) {
       throw new ApiError(401, "Send valid courseId");
     }
-    const course = await Course.findById(courseId).select("-sections");
+    const course = await Course.findOne({
+      _id: courseId,
+      isPublished: true,
+    }).select("-sections");
     if (!course) {
       throw new ApiError(404, "Course not found");
     }
