@@ -23,6 +23,7 @@
       // course routing could be improve instead of course/:id/create or update section or content and sending the respective section id and content id in body, 
       // we can create routes like following: course/:courseId/:sectionId/operations like create, update, delete
       // and /:courseId/:sectionId/:contentId/operations
+      // DONE
 
    6. testing 
       // user tested for most of the routes, purchase and fet purchased courses functionality yet to test
@@ -32,9 +33,9 @@
 
       
 
-   7. backend deploy: seeing Render platform ....
+   7. backend deploy: deployed on Render
 
-   7. frontend work starts 
+   7. frontend work starts: next in the sequence 
 
 
 
