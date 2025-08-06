@@ -2,7 +2,7 @@
 
 ## Live Link:
 
-https://courseapp-be-bq2o.onrender.com/
+https://courseapp-be-bq2o.onrender.com/api/v1
 
 ## ✅ Project Overview
 
