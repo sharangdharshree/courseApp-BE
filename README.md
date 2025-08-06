@@ -98,10 +98,12 @@ Create a `.env` file in the root with the following:
 ```env
 PORT=8000
 MONGODB_URI=mongodb://localhost:27017
+NODE_ENV=development
 ACCESS_TOKEN_SECRET=yourAccessTokenSecret
 REFRESH_TOKEN_SECRET=yourRefreshTokenSecret
 ACCESS_TOKEN_EXPIRY=1d
 REFRESH_TOKEN_EXPIRY=7d
+CORS_ORIGIN=yourFrontendAdd
 CLOUDINARY_CLOUD_NAME=yourCloudName
 CLOUDINARY_API_KEY=yourCloudinaryKey
 CLOUDINARY_API_SECRET=yourCloudinarySecret
@@ -114,8 +116,8 @@ CLOUDINARY_API_SECRET=yourCloudinarySecret
 1. **Clone the repo**
 
 ```bash
-git clone https://github.com/your-username/your-repo-name.git
-cd your-repo-name
+git clone https://github.com/sharangdharshree/courseApp-BE.git
+cd courseApp-BE
 ```
 
 2. **Install dependencies**
