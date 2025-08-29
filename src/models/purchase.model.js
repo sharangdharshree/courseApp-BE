@@ -7,11 +7,13 @@ const purchaseSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     course: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Course",
       required: true,
+      index: true,
     },
     amountBreakdown: {
       currency: {
@@ -24,41 +26,69 @@ const purchaseSchema = new mongoose.Schema(
         type: Number,
         required: true,
       },
+      couponId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Coupon",
+      },
+      couponStatus: {
+        type: String,
+        enum: ["APPLIED", "REDEEMED", "CANCELLED", "EXPIRED"],
+      },
+      couponAppliedAt: {
+        type: Date,
+      },
       netDiscount: {
         type: Number,
         required: true,
       },
-      couponUsed: {
-        type: String,
-      },
+
       totalAmountPaid: {
         type: Number,
         required: true,
       },
     },
-    paymentStatus: {
+    orderId: {
       type: String,
-      enum: ["SUCCESS", "FAILED", "PENDING"],
       required: true,
-      default: "SUCCESS",
+    },
+    orderState: {
+      //external gateway state.
+      type: String,
+      enum: ["created", "attempted", "paid"],
+      default: "created",
+    },
+    paymentId: {
+      type: String,
+    },
+    paymentState: {
+      //transaction lifecycle.
+      type: String,
+      enum: ["created", "authorized", "captured", "refunded", "failed"],
     },
     paymentMethod: {
       type: String,
       enum: ["CARD", "UPI", "EMI", "NETBANKING", "CRYPTO", "OTHER"],
       required: true,
     },
-    transactionId: {
-      type: String,
-      required: true,
-    },
+
     purchaseStatus: {
+      //internal business status.
       type: String,
-      enum: ["PENDING", "PAID", "COMPLETED", "FAILED", "REFUNDED", "CANCELLED"],
-      default: "PENDING",
+      enum: [
+        "STARTED",
+        "PENDING",
+        "COMPLETED",
+        "FAILED",
+        "REFUND" /** WHEN REFUND WILL BE INITIATED BY USER */,
+        "REFUNDED" /** WHEN FINALLY THE REFUND WILL BE COMPLETED */,
+      ],
+      default: "STARTED",
     },
     purchasedAt: {
       type: Date,
-      required: true,
+    },
+    razorpaySignature: {
+      type: String,
     },
     invoiceNumber: {
       type: String,
@@ -69,15 +99,85 @@ const purchaseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-purchaseSchema.method.generateInvoice = () => {
+purchaseSchema.methods.generateInvoice = function () {
   if (this.purchaseStatus !== "COMPLETED") {
     throw new ApiError(
       401,
       `Invoice generation failed, Purchase Status: ${this.purchaseStatus}`
     );
   }
-  return "INV" + new Date.getFullYear() + this._id;
+  return "INV-" + new Date.getFullYear() + "-" + this._id;
 };
+
+// --- Amount Validation ---
+purchaseSchema.pre("save", function (next) {
+  const calculatedTotal =
+    this.amountBreakdown.mrp - this.amountBreakdown.netDiscount;
+  if (this.amountBreakdown.totalAmountPaid !== calculatedTotal) {
+    return next(new ApiError(400, "Invalid amount breakdown mismatch"));
+  }
+  next();
+});
+
+// --- State Enforcement ---
+// --- Allowed Transitions ---
+const allowedTransitions = {
+  STARTED: ["PENDING"],
+  PENDING: ["COMPLETED", "FAILED"],
+  COMPLETED: ["REFUND"],
+  REFUND: ["REFUNDED"],
+  FAILED: [],
+  REFUNDED: [],
+};
+
+// -----------------
+// State Check (for save())
+// -----------------
+purchaseSchema.pre("save", function (next) {
+  if (!this.isModified("purchaseStatus")) return next();
+
+  const oldStatus = this.$__.originalDoc?.purchaseStatus || this.purchaseStatus;
+  const newStatus = this.purchaseStatus;
+
+  if (oldStatus !== newStatus) {
+    const allowed = allowedTransitions[oldStatus] || [];
+    if (!allowed.includes(newStatus)) {
+      return next(
+        new ApiError(
+          400,
+          `Invalid status transition on save: ${oldStatus} → ${newStatus}`
+        )
+      );
+    }
+  }
+});
+
+// -----------------
+// State Check (for findOneAndUpdate())
+// -----------------
+purchaseSchema.pre("findOneAndUpdate", async function (next) {
+  const update = this.getUpdate();
+  if (!update.purchaseStatus && !update["$set"]?.purchaseStatus) {
+    return next();
+  }
+
+  const newStatus = update.purchaseStatus || update["$set"].purchaseStatus;
+  const docToUpdate = await this.model.findOne(this.getQuery()).lean();
+  if (!docToUpdate) return next();
+
+  const oldStatus = docToUpdate.purchaseStatus;
+  const allowed = allowedTransitions[oldStatus] || [];
+  if (!allowed.includes(newStatus)) {
+    return next(
+      new ApiError(
+        400,
+        `Invalid status transition: ${oldStatus} → ${newStatus}`
+      )
+    );
+  }
+
+  next();
+});
 
 const Purchase = new mongoose.model("Purchase", purchaseSchema);
 
