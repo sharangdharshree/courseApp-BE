@@ -11,4 +11,12 @@ const purchaseSchema = z.object({
   transactionId: z.string(),
 });
 
-export { purchaseSchema };
+const razorpayVerifySchema = z.object({
+  razorpay_order_id: z.string(),
+  razorpay_payment_id: z.string(),
+  razorpay_signature: z.string(),
+  amountPaid: z.number().optional(),
+  couponCode: z.string().optional(),
+});
+
+export { purchaseSchema, razorpayVerifySchema };

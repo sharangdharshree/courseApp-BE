@@ -10,7 +10,7 @@ const homePage = asyncHandler(async (req, res) => {
 const getAllCourses = asyncHandler(async (req, res) => {
   try {
     const courses = await Course.find({ isPublished: true }).select(
-      "-createdBy -description -sections"
+      "-createdBy -description -sections",
     );
 
     return res
@@ -30,13 +30,35 @@ const getCourse = asyncHandler(async (req, res) => {
     const course = await Course.findOne({
       _id: courseId,
       isPublished: true,
-    }).select("-sections");
+    });
     if (!course) {
       throw new ApiError(404, "Course not found");
     }
+
+    const syllabus = course.sections.map((section) => ({
+      title: section.title,
+      description: section?.description,
+      contentCount: section.contents?.length,
+    }));
+
+    const courseData = {
+      _id: course._id,
+      title: course.title,
+      overview: course.overview,
+      description: course.description,
+      thumbnail: course.thumbnail,
+      category: course.category,
+      basePrice: course.basePrice,
+      createdBy: course.createdBy,
+      isPublished: course.isPublished,
+      createdAt: course.createdAt,
+      updatedAt: course.updatedAt,
+      sections: syllabus,
+    };
+
     return res
       .status(200)
-      .json(new ApiResponse(200, course, "Course fetched successfully"));
+      .json(new ApiResponse(200, courseData, "Course fetched successfully"));
   } catch (error) {
     throw new ApiError(500, error?.message || "Something went wrong");
   }

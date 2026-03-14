@@ -7,6 +7,7 @@ import {
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 import { Course, Section, Content } from "../models/course.model.js";
+import Purchase from "../models/purchase.model.js";
 
 // for authorized users / admin
 
@@ -27,13 +28,18 @@ const getCourse = asyncHandler(async (req, res) => {
       })
       .select("-basePrice -isPublished");
 
+    if (!course) {
+      throw new ApiError(404, "Course not found");
+    }
+
     if (user) {
-      if (
-        !user.purchases.includes(
-          await Purchase.findOne({ owner: user._id, course: course._id })._id
-        )
-      ) {
-        throw new ApiError(401, "User access denied for the course");
+      const purchase = await Purchase.findOne({
+        owner: user._id,
+        course: course._id,
+      });
+
+      if (!purchase) {
+        throw new ApiError(403, "User access denied for the course");
       }
     }
     if (admin) {

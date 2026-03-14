@@ -7,7 +7,6 @@ import {
   getCurrentUser,
   changeCurrentPassword,
   updateAccountDetails,
-  purchaseCourse,
   getAllPurchasedCourse,
 } from "../controllers/user.controller.js";
 
@@ -19,7 +18,6 @@ import {
   userUpdateSchema,
 } from "../schemas/user.schema.js";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
-import { purchaseSchema } from "../schemas/purchase.schema.js";
 
 const router = Router();
 
@@ -31,7 +29,7 @@ router.route("/logout").post(verifyJwt, logoutUser);
 
 router.route("/current-user").get(verifyJwt, getCurrentUser);
 
-router.route("/refresh-token").post(verifyJwt, refreshAccessToken);
+router.route("/refresh-token").post(refreshAccessToken);
 
 router
   .route("/change-password")
@@ -40,10 +38,6 @@ router
 router
   .route("/update-account")
   .put(verifyJwt, validate(userUpdateSchema), updateAccountDetails);
-
-router
-  .route("/:courseId/purchase-course")
-  .post(verifyJwt, validate(purchaseSchema), purchaseCourse);
 
 router.route("/purchased-courses").get(verifyJwt, getAllPurchasedCourse);
 

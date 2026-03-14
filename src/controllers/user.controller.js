@@ -1,7 +1,4 @@
-import bcrypt from "bcrypt";
 import User from "../models/user.model.js";
-import Purchase from "../models/purchase.model.js";
-import { Course } from "../models/course.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -51,7 +48,7 @@ const registerUser = asyncHandler(async (req, res) => {
     const user = await User.create({
       fullName: fullName,
       email: email,
-      password: await bcrypt.hash(password, 10),
+      password: password,
       phone: phone,
     });
 
@@ -112,15 +109,22 @@ const loginUser = asyncHandler(async (req, res) => {
     const loggedInUser = await User.findById(user._id).select(
       "-password -refreshToken"
     );
-    const options = {
+    const accessTokenOptions = {
       httpOnly: true,
       secure: true,
       sameSite: "None",
+      maxAge: 15 * 60 * 1000,
+    };
+    const refreshTokenOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     };
     return res
       .status(200)
-      .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", refreshToken, options)
+      .cookie("accessToken", accessToken, accessTokenOptions)
+      .cookie("refreshToken", refreshToken, refreshTokenOptions)
       .json(
         new ApiResponse(
           200,
@@ -157,6 +161,7 @@ const logoutUser = asyncHandler(async (req, res) => {
       httpOnly: true,
       secure: true,
       sameSite: "None",
+      maxAge: 0,
     };
 
     return res
@@ -194,13 +199,19 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
     // if incoming token matches with db token, then generate fresh access token
     const freshAccessToken = await user.generateAccessToken();
+    const freshUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
     return res
       .status(200)
-      .cookie("accessToken", freshAccessToken, options)
+      .cookie("accessToken", freshAccessToken, {
+        ...options,
+        maxAge: 15 * 60 * 1000,
+      })
       .json(
         new ApiResponse(
-          201,
-          { accessToken: freshAccessToken },
+          200,
+          { user: freshUser },
           "Access token refreshed"
         )
       );
@@ -234,10 +245,10 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     if (!user) {
       throw new ApiError(502, "Something went wrong while fetching user data");
     }
-    if (!(await bcrypt.compare(oldPassword, user.password))) {
+    if (!(await user.isPasswordCorrect(oldPassword))) {
       throw new ApiError(401, "Incorrect Old Password");
     }
-    user.password = await bcrypt.hash(newPassword, 10);
+    user.password = newPassword;
     await user.save();
     const updatedUser = await User.findById(user._id).select(
       "-password -refreshToken"
@@ -272,67 +283,13 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   }
 });
 
-const purchaseCourse = asyncHandler(async (req, res) => {
-  try {
-    const { amountBreakdown, paymentStatus, paymentMethod, transactionId } =
-      req.body;
-    const courseId = req.params.courseId;
-    if (paymentStatus !== "SUCCESS") {
-      throw new ApiError(401, "Payment not successful");
-    }
-
-    const user = await User.findById(req.user._id);
-    const course = await Course.findById(courseId);
-    if (!user || !course) {
-      throw new ApiError(
-        404,
-        "Service not found, User or Course not available"
-      );
-    }
-    const purchase = await Purchase.create({
-      owner: user,
-      course: course,
-      amountBreakdown: {
-        currency: course.basePrice.currency,
-        mrp: course.basePrice.amount,
-        netDiscount: amountBreakdown.netDiscount,
-        couponUsed: amountBreakdown.couponUsed,
-        totalAmountPaid: amountBreakdown.totalAmountPaid,
-      },
-      paymentStatus: paymentStatus,
-      paymentMethod: paymentMethod,
-      transactionId: transactionId,
-      purchaseStatus: "COMPLETED",
-      purchasedAt: new Date(),
-    });
-    if (purchase.paymentStatus === "COMPLETED") {
-      purchase.invoiceNumber = purchase.generateInvoice();
-      await purchase.save();
-    }
-
-    // adding purchased coursed to users db
-    user.purchases.push(purchase);
-    await user.save();
-
-    const updatedUser = await User.findById(user._id).select(
-      "-password -refreshToken"
-    );
-
-    return res
-      .status(201)
-      .json(new ApiResponse(201, updatedUser, "Course Purchased Successfully"));
-  } catch (error) {
-    throw new ApiError(
-      500,
-      error?.message || "Something went wrong during purchase"
-    );
-  }
-});
-
 const getAllPurchasedCourse = asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .populate({ path: "purchases" })
+      .populate({
+        path: "purchases",
+        populate: { path: "course", select: "title thumbnail overview category" },
+      })
       .select("-password -refreshToken");
     if (!user) {
       throw new ApiError(401, "User not found");
@@ -363,6 +320,5 @@ export {
   getCurrentUser,
   changeCurrentPassword,
   updateAccountDetails,
-  purchaseCourse,
   getAllPurchasedCourse,
 };

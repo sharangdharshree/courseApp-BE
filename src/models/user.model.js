@@ -42,13 +42,12 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// error coming due to use of arrow function in schema method
-// Error: Cannot read properties of undefined (reading 'password')
-// arrow functions do not have their own "this" binding in JavaScript.
-// use regular function () {} syntax
-/*userSchema.methods.isPasswordCorrect = async => (password) {
-  return bcrypt.compare(password, this.password);
-};*/
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
 userSchema.methods.isPasswordCorrect = async function (password) {
   return bcrypt.compare(password, this.password);
 };

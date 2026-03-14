@@ -1,4 +1,3 @@
-import bcrypt from "bcrypt";
 import Admin from "../models/admin.model.js";
 import { Content, Course, Section } from "../models/course.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -54,7 +53,7 @@ const registerAdmin = asyncHandler(async (req, res) => {
     const admin = await Admin.create({
       fullName: fullName,
       email: email,
-      password: await bcrypt.hash(password, 10),
+      password: password,
       phone: phone,
     });
 
@@ -75,6 +74,7 @@ const registerAdmin = asyncHandler(async (req, res) => {
         new ApiResponse(200, createdAdmin, "Admin registered successfully")
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(
       500,
       error?.message || "Something went wrong while registering the admin"
@@ -117,15 +117,22 @@ const loginAdmin = asyncHandler(async (req, res) => {
     const loggedInAdmin = await Admin.findById(admin._id).select(
       "-password -refreshToken"
     );
-    const options = {
+    const accessTokenOptions = {
       httpOnly: true,
       secure: true,
       sameSite: "None",
+      maxAge: 15 * 60 * 1000,
+    };
+    const refreshTokenOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     };
     return res
       .status(200)
-      .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", refreshToken, options)
+      .cookie("accessToken", accessToken, accessTokenOptions)
+      .cookie("refreshToken", refreshToken, refreshTokenOptions)
       .json(
         new ApiResponse(
           200,
@@ -138,6 +145,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong at login");
   }
 });
@@ -162,6 +170,7 @@ const logoutAdmin = asyncHandler(async (req, res) => {
       httpOnly: true,
       secure: true,
       sameSite: "None",
+      maxAge: 0,
     };
 
     return res
@@ -170,6 +179,7 @@ const logoutAdmin = asyncHandler(async (req, res) => {
       .clearCookie("refreshToken", options)
       .json(new ApiResponse(200, {}, "admin logged out successfully"));
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(
       500,
       error?.message || "Something went wrong while logging out"
@@ -211,6 +221,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(401, error?.message || "Invalid refresh token");
   }
 });
@@ -225,6 +236,7 @@ const getCurrentAdmin = asyncHandler(async (req, res) => {
       .status(201)
       .json(new ApiResponse(201, admin, "admin data successfully fetched"));
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(
       500,
       error?.message || "Something went wrong while fetching admin detail"
@@ -240,10 +252,10 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     if (!admin) {
       throw new ApiError(502, "Something went wrong while fetching admin data");
     }
-    if (!(await bcrypt.compare(oldPassword, admin.password))) {
+    if (!(await admin.isPasswordCorrect(oldPassword))) {
       throw new ApiError(401, "Incorrect Old Password");
     }
-    admin.password = await bcrypt.hash(newPassword, 10);
+    admin.password = newPassword;
     await admin.save();
     const updatedAdmin = await Admin.findById(admin._id).select(
       "-password -refreshToken"
@@ -254,6 +266,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
         new ApiResponse(201, { updatedAdmin }, "Password changed successfully")
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong");
   }
 });
@@ -274,6 +287,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
       .status(201)
       .json(new ApiResponse(201, updatedAdmin, "Account update successful"));
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong");
   }
 });
@@ -320,6 +334,7 @@ const createCourse = asyncHandler(async (req, res) => {
       .status(201)
       .json(new ApiResponse(201, { course }, "Course created successfully"));
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong");
   }
 });
@@ -362,6 +377,7 @@ const updateCourse = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong");
   }
 });
@@ -413,6 +429,7 @@ const changeThumbnail = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong");
   }
 });
@@ -473,6 +490,7 @@ const deleteCourse = asyncHandler(async (req, res) => {
         new ApiResponse(201, { deletedCourse }, "Course delete successful")
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong");
   }
 });
@@ -507,6 +525,7 @@ const setCoursePrice = asyncHandler(async (req, res) => {
         new ApiResponse(201, { updatedCourse }, "New price set successfully")
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong");
   }
 });
@@ -542,6 +561,7 @@ const publishCourse = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong");
   }
 });
@@ -557,6 +577,7 @@ const getAllCreatedCourse = asyncHandler(async (req, res) => {
         new ApiResponse(200, { courses }, "All Courses fetched successfully")
       );
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(500, error?.message || "Something went wrong");
   }
 });

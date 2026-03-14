@@ -42,7 +42,7 @@ router.route("/logout").post(verifyJwt, logoutAdmin);
 
 router.route("/current-admin").get(verifyJwt, getCurrentAdmin);
 
-router.route("/refresh-token").post(verifyJwt, refreshAccessToken);
+router.route("/refresh-token").post(refreshAccessToken);
 
 router
   .route("/change-password")

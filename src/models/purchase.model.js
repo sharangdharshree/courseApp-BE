@@ -106,7 +106,7 @@ purchaseSchema.methods.generateInvoice = function () {
       `Invoice generation failed, Purchase Status: ${this.purchaseStatus}`
     );
   }
-  return "INV-" + new Date.getFullYear() + "-" + this._id;
+  return "INV-" + new Date().getFullYear() + "-" + this._id;
 };
 
 // --- Amount Validation ---
@@ -135,11 +135,13 @@ const allowedTransitions = {
 // -----------------
 purchaseSchema.pre("save", function (next) {
   if (!this.isModified("purchaseStatus")) return next();
+  // skip transition check for new documents — initial status is set at creation
+  if (this.isNew) return next();
 
-  const oldStatus = this.$__.originalDoc?.purchaseStatus || this.purchaseStatus;
+  const oldStatus = this.$__.originalDoc?.purchaseStatus;
   const newStatus = this.purchaseStatus;
 
-  if (oldStatus !== newStatus) {
+  if (oldStatus && oldStatus !== newStatus) {
     const allowed = allowedTransitions[oldStatus] || [];
     if (!allowed.includes(newStatus)) {
       return next(
@@ -150,6 +152,7 @@ purchaseSchema.pre("save", function (next) {
       );
     }
   }
+  next();
 });
 
 // -----------------
